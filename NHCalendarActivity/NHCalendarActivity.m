@@ -102,18 +102,24 @@
                 
                 [ekEvent setCalendar:[ekEventStore defaultCalendarForNewEvents]];
                 
-                NSError *error = nil;
-                [ekEventStore saveEvent:ekEvent
-                                   span:EKSpanThisEvent
-                                  error:&error];
-                
-                if (error == nil) {
-                    if ([self.delegate respondsToSelector:@selector(calendarActivityDidFinish:)])
-                        [self.delegate calendarActivityDidFinish:event];
-                } else {
-                    if ([self.delegate respondsToSelector:@selector(calendarActivityDidFail:withError:)])
-                        [self.delegate calendarActivityDidFail:event withError:error];
-                }
+                dispatch_queue_t backgroundQueue = dispatch_get_global_queue(
+                                                                             DISPATCH_QUEUE_PRIORITY_HIGH, 0);
+                dispatch_async(backgroundQueue, ^{
+                    NSError *error = nil;
+                    [ekEventStore saveEvent:ekEvent
+                                       span:EKSpanThisEvent
+                                      error:&error];
+                    
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        if (error == nil) {
+                            if ([self.delegate respondsToSelector:@selector(calendarActivityDidFinish:)])
+                                [self.delegate calendarActivityDidFinish:event];
+                        } else {
+                            if ([self.delegate respondsToSelector:@selector(calendarActivityDidFail:withError:)])
+                                [self.delegate calendarActivityDidFail:event withError:error];
+                        }
+                    });
+                });
             }
         } else {
             if ([self.delegate respondsToSelector:@selector(calendarActivityDidFailWithError:)])
